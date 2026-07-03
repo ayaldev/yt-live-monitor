@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>yt-live-monitor</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0b0b0e;
+            overflow: hidden;
+            font-family: "Google Sans Mono", "SF Mono", "Roboto Mono", Menlo, Monaco, Consolas, monospace;
+        }
+
+        .monitor-matrix {
+            display: grid;
+            width: 100vw;
+            height: 100vh;
+            background-color: #0b0b0e;
+            gap: 0;
+        }
+
+        .monitor-matrix.active-1 {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+
+        .monitor-matrix.active-2 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: 1fr;
+        }
+
+        .monitor-matrix.active-3,
+        .monitor-matrix.active-4 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .monitor-matrix.active-5,
+        .monitor-matrix.active-6 {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .monitor-matrix.active-7,
+        .monitor-matrix.active-8,
+        .monitor-matrix.active-9 {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+        }
+
+        .monitor-matrix.active-gt9 {
+            grid-template-columns: repeat(auto-fit, minmax(30%, 1fr));
+        }
+
+        @media (max-width: 600px) {
+
+            .monitor-matrix.active-2,
+            .monitor-matrix.active-3,
+            .monitor-matrix.active-4,
+            .monitor-matrix.active-5,
+            .monitor-matrix.active-6,
+            .monitor-matrix.active-7,
+            .monitor-matrix.active-8,
+            .monitor-matrix.active-9 {
+                grid-template-columns: 1fr !important;
+                grid-auto-rows: 1fr !important;
+            }
+        }
+
+        .monitor-cell {
+            display: none;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #111115;
+            box-sizing: border-box;
+            border: 1px solid #22222a;
+            justify-content: center;
+            align-items: center;
+            border-radius: 0 !important;
+        }
+
+        .monitor-cell.playing {
+            display: flex !important;
+        }
+
+        .video-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .action-controls-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 99999;
+        }
+
+        .control-btn {
+            width: 44px;
+            height: 44px;
+            background-color: #16161f;
+            border: 1px solid #323242;
+            border-radius: 0 !important;
+            color: #a5a5b5;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+            opacity: 0.5;
+            transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+        }
+
+        .control-btn:hover {
+            opacity: 1;
+            background-color: #1f1f2e;
+            color: #ffffff;
+            border-color: #44445c;
+        }
+
+        #ui-refresh:hover {
+            background-color: #2a1414;
+            color: #ff4d4d;
+            border-color: #662222;
+        }
+
+        .control-btn:active {
+            background-color: #0b0b0e;
+        }
+
+        .refresh-icon,
+        .pencil-icon {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+        }
+
+        .console-log-overlay {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100001;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+            max-width: 380px;
+            width: calc(100% - 40px);
+        }
+
+        .console-toast {
+            background-color: #111115;
+            border-left: 3px solid #4dff4d;
+            border-top: 1px solid #22222a;
+            border-right: 1px solid #22222a;
+            border-bottom: 1px solid #22222a;
+            color: #d1d1d6;
+            padding: 10px 14px;
+            font-size: 11px;
+            line-height: 1.4;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            border-radius: 0 !important;
+            pointer-events: auto;
+        }
+
+        .console-toast.warn {
+            border-left-color: #ffb347;
+        }
+
+        .console-toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(5, 5, 8, 0.85);
+            z-index: 100000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: #111115;
+            border: 1px solid #22222a;
+            border-radius: 0 !important;
+            padding: 20px;
+            width: 90%;
+            max-width: 460px;
+            color: #e1e1e6;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            border-bottom: 1px solid #22222a;
+            padding-bottom: 10px;
+            color: #ff4d4d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            letter-spacing: 0.5px;
+        }
+
+        .header-modifiers {
+            display: flex;
+            gap: 4px;
+        }
+
+        .mod-btn {
+            background: #1c1c24;
+            color: #a5a5b5;
+            border: 1px solid #2e2e3a;
+            width: 26px;
+            height: 26px;
+            border-radius: 0 !important;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mod-btn:hover {
+            background: #252530;
+            color: #ffffff;
+            border-color: #ff4d4d;
+        }
+
+        .form-group-inline {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 12px;
+        }
+
+        .form-group-inline label {
+            font-size: 11px;
+            color: #8a8a9e;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            min-width: 90px;
+        }
+
+        .form-group-inline input {
+            flex: 1;
+            background: #08080a;
+            border: 1px solid #22222a;
+            border-radius: 0 !important;
+            padding: 6px 10px;
+            color: #ffffff;
+            font-family: inherit;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+
+        .form-group-inline input:focus {
+            outline: none;
+            border-color: #ff4d4d;
+            background-color: #0b0b0e;
+        }
+
+        .row-delete-btn {
+            background: #1c1c24;
+            color: #8a8a9e;
+            border: 1px solid #22222a;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 11px;
+        }
+
+        .row-delete-btn:hover {
+            background: #2a1414;
+            color: #ff4d4d;
+            border-color: #662222;
+        }
+
+        .proxy-wrapper {
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px solid #22222a;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 6px 14px;
+            border-radius: 0 !important;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 500;
+            font-size: 12px;
+            border: none;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: #ff4d4d;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #e63939;
+        }
+
+        .btn-secondary {
+            background: #1c1c24;
+            color: #8a8a9e;
+            border: 1px solid #2e2e3a;
+        }
+
+        .btn-secondary:hover {
+            background: #252530;
+            color: #ffffff;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="console-log-overlay" id="console-feed"></div>
+
+    <div class="action-controls-container">
+        <button class="control-btn" id="ui-settings" title="Settings">
+            <svg class="pencil-icon" viewBox="0 0 24 24">
+                <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor"
+                    stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </button>
+
+        <button class="control-btn" id="ui-refresh" title="Refresh">
+            <svg class="refresh-icon" viewBox="0 0 24 24">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l6.73-6.19" stroke="currentColor"
+                    stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="modal-overlay" id="config-modal">
+        <div class="modal-content">
+            <h3>
+                <span>yt-live-monitor config</span>
+                <div class="header-modifiers">
+                    <button class="mod-btn" id="channels-increase" title="Add Channel">+</button>
+                </div>
+            </h3>
+
+            <div id="handles-inputs-container"></div>
+
+            <div class="form-group-inline proxy-wrapper">
+                <label for="proxy-input">PROXY BASE</label>
+                <input type="text" id="proxy-input" placeholder="https://r.jina.ai/">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="btn-close-modal">Cancel</button>
+                <button class="btn btn-primary" id="btn-save-config">Save Setup</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="monitor-matrix" id="matrix-grid"></div>
+
+    <script>
+        const DEFAULT_HANDLES = ["@ayaldev", "@canon_73", "@chikano1582", "@uoratemu582"];
+        const DEFAULT_PROXY = "https://r.jina.ai/";
+
+        let CHANNELS = [];
+        let systemProxy = DEFAULT_PROXY;
+        let localTrackingHandles = [];
+
+        function pushConsoleLog(message, type = 'info') {
+            const feedContainer = document.getElementById('console-feed');
+            if (!feedContainer) return;
+
+            const toast = document.createElement('div');
+            toast.className = `console-toast ${type === 'warn' ? 'warn' : ''}`;
+
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            toast.innerText = `[${timeStr}] ${message}`;
+
+            feedContainer.appendChild(toast);
+
+            setTimeout(() => toast.classList.add('show'), 50);
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 4500);
+        }
+
+        function clearCachedVideoIds() {
+            for (let i = 0; i < 100; i++) {
+                localStorage.removeItem(`ytlive_num_${i}_videoId`);
+            }
+        }
+
+        function loadConfigurations() {
+            const storedHandles = localStorage.getItem('yt_monitor_handles');
+            const storedProxy = localStorage.getItem('yt_monitor_proxy');
+
+            localTrackingHandles = storedHandles ? JSON.parse(storedHandles) : [...DEFAULT_HANDLES];
+            systemProxy = storedProxy || DEFAULT_PROXY;
+
+            CHANNELS = localTrackingHandles.map((handle, index) => ({
+                id: index + 1,
+                handle: handle,
+                loadedVideoId: "",
+                isPlaying: false
+            }));
+        }
+
+        function saveConfigurations(handles, proxy) {
+            // clearCachedVideoIds() removed here so working states are preserved when handles update
+            localStorage.setItem('yt_monitor_handles', JSON.stringify(handles));
+            localStorage.setItem('yt_monitor_proxy', proxy);
+            loadConfigurations();
+            pushConsoleLog("Settings saved.");
+            initMatrix();
+        }
+
+        function getStoredVideoId(key) {
+            return localStorage.getItem(key) || "";
+        }
+
+        function saveStoredVideoId(key, value) {
+            if (!value) return;
+            localStorage.setItem(key, value);
+        }
+
+        function updateMatrixGridSizing() {
+            const grid = document.getElementById('matrix-grid');
+            if (!grid) return;
+
+            grid.className = "monitor-matrix";
+            const visibleCount = CHANNELS.filter(c => c.isPlaying).length;
+
+            if (visibleCount === 0) return;
+
+            if (visibleCount <= 9) {
+                grid.classList.add(`active-${visibleCount}`);
+            } else {
+                grid.classList.add(`active-gt9`);
+            }
+        }
+
+        function mountYouTubeEmbed(channel, videoId) {
+            const container = document.getElementById(`player-${channel.id}`);
+            if (!container || !videoId) return;
+            container.innerHTML = '';
+            const iframeId = `yt-iframe-${channel.id}`;
+            const iframe = document.createElement('iframe');
+            iframe.id = iframeId;
+            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&controls=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
+            iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+            iframe.allowFullscreen = true;
+            iframe.referrerPolicy = "strict-origin-when-cross-origin";
+            container.appendChild(iframe);
+            watchYouTubePlayback(channel.id, iframeId, videoId);
+        }
+
+        let hasExecutedThisMinute = false;
+        let channelRefreshChain = Promise.resolve();
+        let playbackRefreshCooldown = 0;
+        const ytPlayerWatchers = {};
+
+        function triggerPlaybackRefresh(reason, refreshFn) {
+            const now = Date.now();
+            if (now < playbackRefreshCooldown) return;
+            playbackRefreshCooldown = now + 30000;
+            pushConsoleLog(reason, 'warn');
+            refreshFn();
+        }
+
+        function loadYouTubeApi() {
+            if (window.YT && window.YT.Player) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const existing = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+                if (existing) {
+                    existing.addEventListener('load', () => resolve(), { once: true });
+                    existing.addEventListener('error', () => reject(new Error('YouTube API error')), { once: true });
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://www.youtube.com/iframe_api';
+                script.async = true;
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('YouTube API error'));
+                document.head.appendChild(script);
+            });
+        }
+
+        function watchYouTubePlayback(channelId, iframeId, videoId) {
+            loadYouTubeApi().then(() => {
+                if (ytPlayerWatchers[channelId]?.player && typeof ytPlayerWatchers[channelId].player.destroy === 'function') {
+                    ytPlayerWatchers[channelId].player.destroy();
+                }
+
+                const watcher = { lastState: -1, stalledSince: null, timer: null, player: null };
+                const channelObj = CHANNELS.find(c => c.id === channelId);
+
+                watcher.player = new window.YT.Player(iframeId, {
+                    videoId,
+                    playerVars: { autoplay: 1, mute: 1, controls: 1, rel: 0 },
+                    events: {
+                        onReady: () => {
+                            watcher.lastState = -1;
+                            watcher.stalledSince = null;
+                            clearTimeout(watcher.timer);
+                            watcher.timer = window.setTimeout(() => {
+                                if (watcher.lastState === -1 || watcher.lastState === window.YT.PlayerState.UNSTARTED || watcher.lastState === window.YT.PlayerState.BUFFERING) {
+                                    triggerPlaybackRefresh(`CH ${channelId} stalled on load. Refreshing...`, () => refreshFeeds());
+                                }
+                            }, 15000);
+                        },
+                        onStateChange: (event) => {
+                            watcher.lastState = event.data;
+
+                            if (event.data === window.YT.PlayerState.PLAYING) {
+                                watcher.stalledSince = null;
+                                clearTimeout(watcher.timer);
+
+                                if (channelObj && !channelObj.isPlaying) {
+                                    channelObj.isPlaying = true;
+                                    const cellEl = document.getElementById(`cell-${channelId}`);
+                                    if (cellEl) cellEl.classList.add('playing');
+                                    updateMatrixGridSizing();
+                                    pushConsoleLog(`CH ${channelId} (${channelObj.handle}) is live.`);
+                                }
+                                return;
+                            }
+
+                            if (event.data === window.YT.PlayerState.ENDED || event.data === window.YT.PlayerState.PAUSED) {
+                                if (channelObj && channelObj.isPlaying) {
+                                    channelObj.isPlaying = false;
+                                    const cellEl = document.getElementById(`cell-${channelId}`);
+                                    if (cellEl) cellEl.classList.remove('playing');
+                                    updateMatrixGridSizing();
+                                }
+                            }
+
+                            if (event.data === window.YT.PlayerState.BUFFERING || event.data === window.YT.PlayerState.UNSTARTED) {
+                                if (!watcher.stalledSince) watcher.stalledSince = Date.now();
+                                clearTimeout(watcher.timer);
+                                watcher.timer = window.setTimeout(() => {
+                                    if (watcher.lastState === window.YT.PlayerState.BUFFERING || watcher.lastState === window.YT.PlayerState.UNSTARTED) {
+                                        triggerPlaybackRefresh(`CH ${channelId} buffering too long. Refreshing...`, () => refreshFeeds());
+                                    }
+                                }, 15000);
+                            } else {
+                                watcher.stalledSince = null;
+                                clearTimeout(watcher.timer);
+                            }
+                        },
+                        onError: () => {
+                            clearTimeout(watcher.timer);
+                            if (channelObj && channelObj.isPlaying) {
+                                channelObj.isPlaying = false;
+                                const cellEl = document.getElementById(`cell-${channelId}`);
+                                if (cellEl) cellEl.classList.remove('playing');
+                                updateMatrixGridSizing();
+                            }
+                            triggerPlaybackRefresh(`CH ${channelId} player error. Refreshing...`, () => refreshFeeds());
+                        }
+                    }
+                });
+                ytPlayerWatchers[channelId] = watcher;
+            }).catch(err => {
+                pushConsoleLog(`Watcher error on CH ${channelId}`, 'warn');
+            });
+        }
+
+        function initMatrix() {
+            const grid = document.getElementById('matrix-grid');
+            grid.innerHTML = '';
+            grid.className = "monitor-matrix";
+
+            CHANNELS.forEach(channel => {
+                const cell = document.createElement('div');
+                cell.className = 'monitor-cell';
+                cell.id = `cell-${channel.id}`;
+                cell.innerHTML = `<div class="video-container" id="player-${channel.id}"></div>`;
+                grid.appendChild(cell);
+
+                const storedId = getStoredVideoId(`ytlive_num_${channel.id}_videoId`);
+                if (storedId) {
+                    channel.loadedVideoId = storedId;
+                    mountYouTubeEmbed(channel, storedId);
+                }
+            });
+
+            pushConsoleLog(`Scanning handles for live streams...`);
+            refreshFeeds();
+        }
+
+        function refreshFeeds() {
+            channelRefreshChain = CHANNELS.reduce((chain, channel) => {
+                return chain.then(() => processChannelFeed(channel));
+            }, channelRefreshChain);
+            return channelRefreshChain;
+        }
+
+        async function fetchYouTubeVideoId(channel) {
+            const timestamp = Date.now();
+            const randomString = Math.random().toString(36).substring(2, 15);
+            const cacheBuster = `?updated=${timestamp}+${randomString}`;
+            const targetUrl = `https://www.youtube.com/${channel.handle}/featured${cacheBuster}`;
+
+            let baseProxy = systemProxy.trim();
+            if (!baseProxy.endsWith('/')) baseProxy += '/';
+            const jinaApiEndpoint = `${baseProxy}${targetUrl}`;
+
+            try {
+                const response = await fetch(jinaApiEndpoint);
+                if (!response.ok) throw new Error('Network error');
+                const markdownText = await response.text();
+
+                const standardYtRegex = /(?:v=|embed\/|watch\?v=|vi\/|youtu\.be\/|\/shorts\/|vi_webp\/)([a-zA-Z0-9_-]{11})/;
+                const thumbnailRegex = /\/vi\/([a-zA-Z0-9_-]{11})\/(?:maxresdefault|hqdefault|mqdefault)\.jpg/;
+
+                let liveVideoId = null;
+                const standardMatch = markdownText.match(standardYtRegex);
+                const thumbnailMatch = markdownText.match(thumbnailRegex);
+
+                if (standardMatch && standardMatch[1]) {
+                    liveVideoId = standardMatch[1];
+                } else if (thumbnailMatch && thumbnailMatch[1]) {
+                    liveVideoId = thumbnailMatch[1];
+                }
+                return liveVideoId;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        async function processChannelFeed(channel) {
+            try {
+                const liveVideoId = await fetchYouTubeVideoId(channel);
+                if (liveVideoId) {
+                    updateChannelPlayer(channel, liveVideoId);
+                }
+            } catch (err) {
+                console.warn(err);
+            }
+        }
+
+        function updateChannelPlayer(channel, videoId) {
+            const container = document.getElementById('player-' + channel.id);
+            if (!videoId || !container) return;
+
+            const idChanged = channel.loadedVideoId !== videoId;
+            const hasIframe = container.querySelector('iframe');
+
+            if (idChanged || !hasIframe) {
+                channel.loadedVideoId = videoId;
+                saveStoredVideoId(`ytlive_num_${channel.id}_videoId`, videoId);
+                mountYouTubeEmbed(channel, videoId);
+            }
+        }
+
+        function manageScheduleEngine() {
+            setInterval(() => {
+                const currentClock = new Date();
+                const currentMinutes = currentClock.getMinutes();
+                if (currentMinutes % 5 === 0) {
+                    if (!hasExecutedThisMinute) {
+                        hasExecutedThisMinute = true;
+                        pushConsoleLog(`Auto-checking feeds...`);
+                        refreshFeeds();
+                    }
+                } else {
+                    hasExecutedThisMinute = false;
+                }
+            }, 1000);
+        }
+
+        const modalOverlay = document.getElementById('config-modal');
+        const handlesContainer = document.getElementById('handles-inputs-container');
+        const proxyInput = document.getElementById('proxy-input');
+
+        function syncTrackingHandlesFromDOM() {
+            const fields = document.querySelectorAll('.handle-input-field');
+            localTrackingHandles = Array.from(fields).map(f => f.value.trim());
+        }
+
+        function renderModalInputs() {
+            handlesContainer.innerHTML = '';
+            localTrackingHandles.forEach((handle, i) => {
+                const group = document.createElement('div');
+                group.className = 'form-group-inline';
+                group.innerHTML = `
+                    <label>CHANNEL ${i + 1}</label>
+                    <input type="text" class="handle-input-field" value="${handle}">
+                    <button class="row-delete-btn" data-index="${i}" title="Delete Row">-</button>
+                `;
+                handlesContainer.appendChild(group);
+            });
+            proxyInput.value = systemProxy;
+
+            document.querySelectorAll('.row-delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const indexToRemove = parseInt(e.target.getAttribute('data-index'), 10);
+                    const fields = document.querySelectorAll('.handle-input-field');
+
+                    if (fields.length <= 1) {
+                        pushConsoleLog("Must have at least 1 channel.", "warn");
+                        return;
+                    }
+
+                    syncTrackingHandlesFromDOM();
+                    localTrackingHandles.splice(indexToRemove, 1);
+                    renderModalInputs();
+                });
+            });
+        }
+
+        function openModal() {
+            renderModalInputs();
+            modalOverlay.classList.add('active');
+        }
+
+        function closeModal() {
+            modalOverlay.classList.remove('active');
+        }
+
+        document.getElementById('channels-increase').addEventListener('click', () => {
+            syncTrackingHandlesFromDOM();
+            localTrackingHandles.push('');
+            renderModalInputs();
+        });
+
+        document.getElementById('btn-close-modal').addEventListener('click', closeModal);
+        document.getElementById('ui-settings').addEventListener('click', openModal);
+
+        document.getElementById('btn-save-config').addEventListener('click', () => {
+            const inputFields = document.querySelectorAll('.handle-input-field');
+            const newHandles = [];
+
+            inputFields.forEach(input => {
+                let val = input.value.trim();
+                if (val) {
+                    if (!val.startsWith('@')) val = '@' + val;
+                    newHandles.push(val);
+                }
+            });
+
+            const newProxy = proxyInput.value.trim() || DEFAULT_PROXY;
+
+            if (newHandles.length > 0) {
+                saveConfigurations(newHandles, newProxy);
+                closeModal();
+            } else {
+                pushConsoleLog("Please enter at least one channel.", "warn");
+            }
+        });
+
+        loadConfigurations();
+        initMatrix();
+        manageScheduleEngine();
+
+        document.getElementById('ui-refresh').addEventListener('click', () => {
+            pushConsoleLog("Manual check started. Clearing cache...");
+            clearCachedVideoIds(); // Explicitly clearing cache only on explicit manual refresh action
+
+            CHANNELS.forEach(channel => {
+                channel.loadedVideoId = "";
+                channel.isPlaying = false;
+                const cellEl = document.getElementById(`cell-${channel.id}`);
+                if (cellEl) cellEl.classList.remove('playing');
+                const container = document.getElementById(`player-${channel.id}`);
+                if (container) container.innerHTML = '';
+            });
+
+            updateMatrixGridSizing();
+            refreshFeeds();
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            openModal();
+        });
+    </script>
+</body>
+
+</html>
